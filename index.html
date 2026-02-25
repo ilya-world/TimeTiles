@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TimeTiles</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="panel panel-left">
+        <div class="logo-block">
+          <h1>TimeTiles</h1>
+          <p>Сутки как мозаика из 10-минутных плиток</p>
+        </div>
+
+        <section class="section">
+          <h2>Дни</h2>
+          <div id="dayList" class="day-list"></div>
+        </section>
+
+        <section class="section switches">
+          <label class="switch-row">
+            <input type="checkbox" id="toggleTimeLabels" />
+            <span>Показывать время в плитках</span>
+          </label>
+          <label class="switch-row">
+            <input type="checkbox" id="toggleTheme" />
+            <span>Темный режим</span>
+          </label>
+        </section>
+
+        <section class="section">
+          <button id="openImportModal" class="btn btn-primary">Импорт</button>
+        </section>
+      </aside>
+
+      <main class="panel panel-center">
+        <div class="center-header">
+          <h2 id="selectedDayTitle"></h2>
+          <p>12×12 плиток · 24 часа · шаг 10 минут</p>
+        </div>
+
+        <div id="grid" class="grid" aria-label="Матрица времени"></div>
+
+        <section class="tile-editor" id="tileEditor">
+          <h3>Выбранная плитка: <span id="selectedTileTime">—</span></h3>
+          <div class="tile-editor-row">
+            <label>Активность</label>
+            <div class="activity-inline">
+              <span id="selectedActivityName">Не выбрана</span>
+              <button id="clearSelectedActivity" class="btn btn-subtle">Очистить</button>
+            </div>
+          </div>
+          <div class="tile-editor-row">
+            <label for="selectedComment">Комментарий</label>
+            <textarea id="selectedComment" rows="2" placeholder="Добавьте заметку к интервалу"></textarea>
+          </div>
+        </section>
+      </main>
+
+      <aside class="panel panel-right">
+        <section class="section">
+          <h2>Кисти активностей</h2>
+          <div id="groupsContainer" class="groups-container"></div>
+          <button id="addGroupBtn" class="btn">+ Группа</button>
+          <button id="addUngroupedActivityBtn" class="btn btn-primary">+ Активность</button>
+        </section>
+
+        <section class="section">
+          <h2>Палитра</h2>
+          <div id="palette" class="palette"></div>
+          <label class="custom-color">
+            Свой цвет
+            <input type="color" id="customColorPicker" value="#2d6cdf" />
+          </label>
+        </section>
+      </aside>
+    </div>
+
+    <dialog id="importModal">
+      <form method="dialog" class="modal-content" id="importForm">
+        <h3>Импорт встреч</h3>
+        <p>Каждая строка: <code>XX:XX-YY:YY NAME</code></p>
+        <textarea id="importText" rows="10" placeholder="09:00-09:45 Standup\n13:10-14:00 Demo"></textarea>
+        <div class="modal-actions">
+          <button class="btn" value="cancel">Отмена</button>
+          <button class="btn btn-primary" id="applyImport" value="default">Импортировать</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="tooltip" class="tooltip" role="tooltip"></div>
+
+    <template id="groupTemplate">
+      <article class="group-card">
+        <div class="group-header">
+          <div class="group-title-wrap">
+            <input class="group-name" />
+            <input class="group-color" type="color" />
+          </div>
+          <button class="icon-btn delete-group" title="Удалить группу">✕</button>
+        </div>
+        <div class="group-actions">
+          <button class="btn btn-subtle add-activity-in-group">+ Активность в группе</button>
+        </div>
+        <div class="activities"></div>
+      </article>
+    </template>
+
+    <template id="activityTemplate">
+      <div class="activity-brush">
+        <button class="brush-button"></button>
+        <input class="activity-name" />
+        <input class="activity-color" type="color" />
+        <button class="icon-btn delete-activity" title="Удалить активность">🗑</button>
+      </div>
+    </template>
+
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -95,7 +95,7 @@ body {
   background: color-mix(in srgb, var(--activity-color, #d1d5db) 18%, transparent);
   box-shadow: inset 0 0 0 3px var(--activity-color, transparent);
 }
-.tile.past { filter: saturate(0.2) brightness(0.85); }
+.tile.past { filter: saturate(0.55) brightness(0.92); }
 .tile.current { outline: 3px solid #f59e0b; outline-offset: 2px; }
 .tile.selected { border-color: var(--selected); box-shadow: inset 0 0 0 2px var(--selected); }
 
@@ -211,3 +211,9 @@ dialog {
 @media (max-width: 1200px) {
   .app-shell { grid-template-columns: 1fr; }
 }
+
+
+.activity-brush.dragging { opacity: 0.45; }
+.activity-brush.drop-before { border-top: 2px solid #2563eb; padding-top: 4px; }
+.activity-brush.drop-after { border-bottom: 2px solid #2563eb; padding-bottom: 4px; }
+.activities.drop-target { outline: 2px dashed #2563eb80; outline-offset: 3px; border-radius: 8px; }

@@ -28,7 +28,9 @@ const els = {
   importModal: document.getElementById('importModal'),
   openImportModal: document.getElementById('openImportModal'),
   importForm: document.getElementById('importForm'),
-  importText: document.getElementById('importText')
+  importText: document.getElementById('importText'),
+  togglePastDimming: document.getElementById('togglePastDimming'),
+  toggleActivityLabels: document.getElementById('toggleActivityLabels')
 };
 
 const state = loadState();
@@ -54,7 +56,7 @@ function loadState() {
   }
   const today = dayKey(new Date());
   return {
-    settings: { showTimeLabels: true, darkMode: false },
+    settings: { showTimeLabels: true, darkMode: false, dimPastTiles: true, showActivityLabels: true },
     selectedDay: today,
     selectedTile: null,
     selectedBrushId: null,
@@ -79,9 +81,13 @@ function ensureToday() {
 }
 
 function renderAll() {
+  state.settings.dimPastTiles ??= true;
+  state.settings.showActivityLabels ??= true;
   document.body.classList.toggle('dark', state.settings.darkMode);
   els.toggleTheme.checked = state.settings.darkMode;
   els.toggleTimeLabels.checked = state.settings.showTimeLabels;
+  els.togglePastDimming.checked = state.settings.dimPastTiles;
+  els.toggleActivityLabels.checked = state.settings.showActivityLabels;
   renderDayList();
   renderGrid();
   renderSelectionPanel();
@@ -123,7 +129,7 @@ function renderGrid() {
     const activity = state.activities.find((a) => a.id === cellData.activityId) || null;
     const tile = document.createElement('button');
     tile.className = 'tile';
-    if (i < currentTile) tile.classList.add('past');
+    if (i < currentTile && state.settings.dimPastTiles) tile.classList.add('past');
     if (i === currentTile) tile.classList.add('current');
     if (state.selectedTile === i) tile.classList.add('selected');
     if (i > currentTile && activity) tile.classList.add('future');
@@ -136,7 +142,9 @@ function renderGrid() {
     if (rightSame) tile.classList.add('connected-right');
 
     const [start, end] = tileRange(i);
-    tile.dataset.tooltip = `${start}-${end}\n${activity ? activity.name : 'Без активности'}\n${cellData.comment || 'Без комментария'}`;
+    const tooltipLines = [`${start}-${end}`, activity ? activity.name : 'Без активности'];
+    if (cellData.comment) tooltipLines.push(cellData.comment);
+    tile.dataset.tooltip = tooltipLines.join('\n');
 
     if (state.settings.showTimeLabels) {
       const tt = document.createElement('div');
@@ -146,7 +154,7 @@ function renderGrid() {
       tile.appendChild(tt);
     }
 
-    if (activity) {
+    if (activity && state.settings.showActivityLabels) {
       const label = document.createElement('div');
       label.className = 'tile-label';
       label.textContent = activity.name;
@@ -210,14 +218,13 @@ function renderGroups() {
   els.groupsContainer.innerHTML = '';
 
   const ungrouped = state.activities.filter((a) => !a.groupId);
-  if (ungrouped.length) {
-    const block = document.createElement('article');
-    block.className = 'group-card';
-    block.innerHTML = '<strong>Без группы</strong><div class="activities"></div>';
-    const box = block.querySelector('.activities');
-    ungrouped.forEach((a) => box.appendChild(renderActivityNode(a, activityTpl)));
-    els.groupsContainer.appendChild(block);
-  }
+  const block = document.createElement('article');
+  block.className = 'group-card';
+  block.innerHTML = '<strong>Без группы</strong><div class="activities" data-group-id=""></div>';
+  const box = block.querySelector('.activities');
+  attachActivitiesDropTarget(box, null);
+  ungrouped.forEach((a) => box.appendChild(renderActivityNode(a, activityTpl)));
+  els.groupsContainer.appendChild(block);
 
   state.groups.forEach((group) => {
     const node = groupTpl.content.firstElementChild.cloneNode(true);
@@ -236,6 +243,8 @@ function renderGroups() {
     };
 
     const activitiesBox = node.querySelector('.activities');
+    activitiesBox.dataset.groupId = group.id;
+    attachActivitiesDropTarget(activitiesBox, group.id);
     state.activities.filter((a) => a.groupId === group.id).forEach((a) => {
       activitiesBox.appendChild(renderActivityNode(a, activityTpl));
     });
@@ -246,6 +255,8 @@ function renderGroups() {
 
 function renderActivityNode(activity, tpl) {
   const node = tpl.content.firstElementChild.cloneNode(true);
+  node.draggable = true;
+  node.dataset.activityId = activity.id;
   const brush = node.querySelector('.brush-button');
   brush.style.background = activity.color;
   brush.classList.toggle('selected', state.selectedBrushId === activity.id);
@@ -256,11 +267,52 @@ function renderActivityNode(activity, tpl) {
 
   const nameInput = node.querySelector('.activity-name');
   nameInput.value = activity.name;
-  nameInput.oninput = (e) => { activity.name = e.target.value; renderAll(); };
+  nameInput.oninput = (e) => {
+    activity.name = e.target.value;
+    renderGrid();
+    renderSelectionPanel();
+    saveState();
+  };
 
   const colorInput = node.querySelector('.activity-color');
   colorInput.value = activity.color;
-  colorInput.oninput = (e) => { activity.color = e.target.value; renderAll(); };
+  colorInput.oninput = (e) => {
+    activity.color = e.target.value;
+    renderGrid();
+    saveState();
+  };
+
+  node.addEventListener('dragstart', (e) => {
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', activity.id);
+    node.classList.add('dragging');
+  });
+
+  node.addEventListener('dragend', () => {
+    node.classList.remove('dragging');
+    clearDropIndicators();
+  });
+
+  node.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    const targetRect = node.getBoundingClientRect();
+    const placeBefore = e.clientY < targetRect.top + targetRect.height / 2;
+    node.classList.toggle('drop-before', placeBefore);
+    node.classList.toggle('drop-after', !placeBefore);
+  });
+
+  node.addEventListener('dragleave', () => {
+    node.classList.remove('drop-before', 'drop-after');
+  });
+
+  node.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const draggedId = e.dataTransfer.getData('text/plain');
+    if (!draggedId || draggedId === activity.id) return;
+    const targetRect = node.getBoundingClientRect();
+    const placeBefore = e.clientY < targetRect.top + targetRect.height / 2;
+    moveActivity(draggedId, activity.groupId || null, activity.id, placeBefore);
+  });
 
   node.querySelector('.delete-activity').onclick = () => {
     state.activities = state.activities.filter((a) => a.id !== activity.id);
@@ -276,6 +328,8 @@ function renderActivityNode(activity, tpl) {
 function bindGlobalEvents() {
   els.toggleTheme.onchange = (e) => { state.settings.darkMode = e.target.checked; renderAll(); };
   els.toggleTimeLabels.onchange = (e) => { state.settings.showTimeLabels = e.target.checked; renderAll(); };
+  els.togglePastDimming.onchange = (e) => { state.settings.dimPastTiles = e.target.checked; renderAll(); };
+  els.toggleActivityLabels.onchange = (e) => { state.settings.showActivityLabels = e.target.checked; renderAll(); };
 
   els.addGroupBtn.onclick = () => {
     state.groups.push({ id: uid(), name: 'Новая группа', color: els.customColorPicker.value });
@@ -295,6 +349,7 @@ function bindGlobalEvents() {
     if (state.selectedTile == null) return;
     const tile = state.days[state.selectedDay][state.selectedTile];
     tile.activityId = null;
+    tile.comment = '';
     renderAll();
   };
 
@@ -427,4 +482,60 @@ function moveTooltip(e) {
 
 function hideTooltip() {
   els.tooltip.style.display = 'none';
+}
+
+function attachActivitiesDropTarget(container, groupId) {
+  container.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (e.target === container) container.classList.add('drop-target');
+  });
+
+  container.addEventListener('dragleave', (e) => {
+    if (!container.contains(e.relatedTarget)) container.classList.remove('drop-target');
+  });
+
+  container.addEventListener('drop', (e) => {
+    e.preventDefault();
+    container.classList.remove('drop-target');
+    const draggedId = e.dataTransfer.getData('text/plain');
+    if (!draggedId) return;
+    moveActivity(draggedId, groupId, null, true);
+  });
+}
+
+function moveActivity(activityId, targetGroupId, targetActivityId = null, placeBefore = true) {
+  const sourceIndex = state.activities.findIndex((a) => a.id === activityId);
+  if (sourceIndex < 0) return;
+
+  const [item] = state.activities.splice(sourceIndex, 1);
+  item.groupId = targetGroupId;
+
+  if (!targetActivityId) {
+    const sameGroupIndexes = state.activities
+      .map((activity, idx) => ({ activity, idx }))
+      .filter(({ activity }) => (activity.groupId || null) === targetGroupId)
+      .map(({ idx }) => idx);
+    if (!sameGroupIndexes.length) {
+      state.activities.push(item);
+    } else {
+      state.activities.splice(sameGroupIndexes[sameGroupIndexes.length - 1] + 1, 0, item);
+    }
+    renderAll();
+    return;
+  }
+
+  const targetIndex = state.activities.findIndex((a) => a.id === targetActivityId);
+  if (targetIndex < 0) {
+    state.activities.push(item);
+  } else {
+    const insertAt = placeBefore ? targetIndex : targetIndex + 1;
+    state.activities.splice(insertAt, 0, item);
+  }
+  renderAll();
+}
+
+function clearDropIndicators() {
+  els.groupsContainer.querySelectorAll('.activity-brush, .activities').forEach((node) => {
+    node.classList.remove('drop-before', 'drop-after', 'drop-target', 'dragging');
+  });
 }

@@ -71,6 +71,7 @@ body {
 }
 .btn-primary { background: #2563eb; color: white; border-color: #2563eb; }
 .btn-subtle { font-size: 0.82rem; padding: 4px 8px; }
+.btn.active { background: #2563eb18; border-color: #2563eb66; }
 
 .panel-center { display: flex; flex-direction: column; gap: 12px; }
 .center-header h2 { margin: 0; }
@@ -140,7 +141,8 @@ body.dark .tile-time { color: #f3f4f6; background: #00000080; }
 .tile-editor h3 { margin: 0 0 10px; }
 .tile-editor-row { margin-bottom: 10px; }
 .tile-editor-row label { display: block; margin-bottom: 4px; color: var(--muted); }
-.activity-inline { display: flex; justify-content: space-between; align-items: center; }
+.activity-inline { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.tile-editor-actions { display: flex; gap: 6px; }
 textarea, input[type="text"], .activity-name, .group-name {
   width: 100%;
   border: 1px solid var(--border);

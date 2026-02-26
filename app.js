@@ -18,6 +18,7 @@ const els = {
   selectedTileTime: document.getElementById('selectedTileTime'),
   selectedActivityName: document.getElementById('selectedActivityName'),
   clearSelectedActivity: document.getElementById('clearSelectedActivity'),
+  copySelectedActivity: document.getElementById('copySelectedActivity'),
   selectedComment: document.getElementById('selectedComment'),
   groupsContainer: document.getElementById('groupsContainer'),
   addGroupBtn: document.getElementById('addGroupBtn'),
@@ -30,7 +31,8 @@ const els = {
   importForm: document.getElementById('importForm'),
   importText: document.getElementById('importText'),
   togglePastDimming: document.getElementById('togglePastDimming'),
-  toggleActivityLabels: document.getElementById('toggleActivityLabels')
+  toggleActivityLabels: document.getElementById('toggleActivityLabels'),
+  eraserBrushBtn: document.getElementById('eraserBrushBtn')
 };
 
 const state = loadState();
@@ -61,7 +63,7 @@ function loadState() {
     settings: { showTimeLabels: true, darkMode: false, dimPastTiles: true, showActivityLabels: true },
     selectedDay: today,
     selectedTile: null,
-    selectedBrushId: null,
+    selectedBrush: null,
     groups: [],
     activities: [],
     days: { [today]: createEmptyDay() }
@@ -116,11 +118,16 @@ function startAutoRefresh() {
 function renderAll() {
   state.settings.dimPastTiles ??= true;
   state.settings.showActivityLabels ??= true;
+  if (!('selectedBrush' in state)) {
+    state.selectedBrush = state.selectedBrushId ? { type: 'activity', activityId: state.selectedBrushId } : null;
+    delete state.selectedBrushId;
+  }
   document.body.classList.toggle('dark', state.settings.darkMode);
   els.toggleTheme.checked = state.settings.darkMode;
   els.toggleTimeLabels.checked = state.settings.showTimeLabels;
   els.togglePastDimming.checked = state.settings.dimPastTiles;
   els.toggleActivityLabels.checked = state.settings.showActivityLabels;
+  els.eraserBrushBtn.classList.toggle('active', state.selectedBrush?.type === 'erase');
   renderDayList();
   renderGrid();
   renderSelectionPanel();
@@ -196,14 +203,14 @@ function renderGrid() {
 
     tile.addEventListener('click', (e) => {
       state.selectedTile = i;
-      if (state.selectedBrushId) applyBrush(i);
+      if (hasActiveBrush()) applyBrush(i);
       renderAll();
       e.stopPropagation();
     });
 
     tile.addEventListener('mousedown', () => {
       isPainting = true;
-      if (state.selectedBrushId) {
+      if (hasActiveBrush()) {
         applyBrush(i);
         state.selectedTile = i;
         renderAll();
@@ -212,7 +219,7 @@ function renderGrid() {
 
     tile.addEventListener('mouseenter', (e) => {
       showTooltip(e, tile.dataset.tooltip);
-      if (isPainting && state.selectedBrushId) {
+      if (isPainting && hasActiveBrush()) {
         applyBrush(i);
         state.selectedTile = i;
         renderAll();
@@ -232,6 +239,8 @@ function renderSelectionPanel() {
     els.selectedComment.value = '';
     els.selectedComment.disabled = true;
     els.clearSelectedActivity.disabled = true;
+    els.copySelectedActivity.disabled = true;
+    els.copySelectedActivity.classList.remove('active');
     return;
   }
   els.selectedComment.disabled = false;
@@ -243,6 +252,12 @@ function renderSelectionPanel() {
   els.selectedTileTime.textContent = `${start}–${end}`;
   els.selectedActivityName.textContent = activity ? activity.name : 'Не задана';
   els.selectedComment.value = tile.comment || '';
+  const canCopy = Boolean(activity);
+  els.copySelectedActivity.disabled = !canCopy;
+  const copyBrush = state.selectedBrush?.type === 'copy'
+    && state.selectedBrush.activityId === tile.activityId
+    && (state.selectedBrush.comment || '') === (tile.comment || '');
+  els.copySelectedActivity.classList.toggle('active', copyBrush);
 }
 
 function renderGroups() {
@@ -292,9 +307,11 @@ function renderActivityNode(activity, tpl) {
   node.dataset.activityId = activity.id;
   const brush = node.querySelector('.brush-button');
   brush.style.background = activity.color;
-  brush.classList.toggle('selected', state.selectedBrushId === activity.id);
+  brush.classList.toggle('selected', state.selectedBrush?.type === 'activity' && state.selectedBrush.activityId === activity.id);
   brush.onclick = () => {
-    state.selectedBrushId = state.selectedBrushId === activity.id ? null : activity.id;
+    state.selectedBrush = state.selectedBrush?.type === 'activity' && state.selectedBrush.activityId === activity.id
+      ? null
+      : { type: 'activity', activityId: activity.id };
     renderAll();
   };
 
@@ -352,7 +369,7 @@ function renderActivityNode(activity, tpl) {
     Object.values(state.days).forEach((day) => day.forEach((tile) => {
       if (tile.activityId === activity.id) tile.activityId = null;
     }));
-    if (state.selectedBrushId === activity.id) state.selectedBrushId = null;
+    if (state.selectedBrush?.activityId === activity.id) state.selectedBrush = null;
     renderAll();
   };
   return node;
@@ -363,6 +380,11 @@ function bindGlobalEvents() {
   els.toggleTimeLabels.onchange = (e) => { state.settings.showTimeLabels = e.target.checked; renderAll(); };
   els.togglePastDimming.onchange = (e) => { state.settings.dimPastTiles = e.target.checked; renderAll(); };
   els.toggleActivityLabels.onchange = (e) => { state.settings.showActivityLabels = e.target.checked; renderAll(); };
+
+  els.eraserBrushBtn.onclick = () => {
+    state.selectedBrush = state.selectedBrush?.type === 'erase' ? null : { type: 'erase' };
+    renderAll();
+  };
 
   els.addGroupBtn.onclick = () => {
     state.groups.push({ id: uid(), name: 'Новая группа', color: els.customColorPicker.value });
@@ -376,6 +398,20 @@ function bindGlobalEvents() {
 
   els.customColorPicker.oninput = () => {
     [...els.palette.children].forEach((n) => n.classList.remove('active'));
+  };
+
+
+  els.copySelectedActivity.onclick = () => {
+    if (state.selectedTile == null) return;
+    const tile = state.days[state.selectedDay][state.selectedTile];
+    if (!tile.activityId) return;
+    const sameCopy = state.selectedBrush?.type === 'copy'
+      && state.selectedBrush.activityId === tile.activityId
+      && (state.selectedBrush.comment || '') === (tile.comment || '');
+    state.selectedBrush = sameCopy
+      ? null
+      : { type: 'copy', activityId: tile.activityId, comment: tile.comment || '' };
+    renderAll();
   };
 
   els.clearSelectedActivity.onclick = () => {
@@ -431,9 +467,21 @@ function createActivity(groupId = null, color = '#3b82f6') {
 }
 
 function applyBrush(tileIndex) {
-  if (state.selectedBrushId == null) return;
+  if (!hasActiveBrush()) return;
   const tile = state.days[state.selectedDay][tileIndex];
-  tile.activityId = state.selectedBrushId;
+
+  if (state.selectedBrush.type === 'erase') {
+    tile.activityId = null;
+    tile.comment = '';
+    return;
+  }
+
+  tile.activityId = state.selectedBrush.activityId;
+  if (state.selectedBrush.type === 'copy') tile.comment = state.selectedBrush.comment || '';
+}
+
+function hasActiveBrush() {
+  return Boolean(state.selectedBrush && (state.selectedBrush.type === 'erase' || state.selectedBrush.activityId));
 }
 
 function importMeetings(text) {

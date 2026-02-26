@@ -57,7 +57,10 @@
             <label>Активность</label>
             <div class="activity-inline">
               <span id="selectedActivityName">Не выбрана</span>
-              <button id="clearSelectedActivity" class="btn btn-subtle">Очистить</button>
+              <div class="tile-editor-actions">
+                <button id="copySelectedActivity" class="btn btn-subtle">Копировать</button>
+                <button id="clearSelectedActivity" class="btn btn-subtle">Очистить</button>
+              </div>
             </div>
           </div>
           <div class="tile-editor-row">
@@ -70,6 +73,7 @@
       <aside class="panel panel-right">
         <section class="section">
           <h2>Кисти активностей</h2>
+          <button id="eraserBrushBtn" class="btn btn-subtle">Стёрка</button>
           <div id="groupsContainer" class="groups-container"></div>
           <button id="addGroupBtn" class="btn">+ Группа</button>
           <button id="addUngroupedActivityBtn" class="btn btn-primary">+ Активность</button>

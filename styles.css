@@ -100,6 +100,30 @@ body {
 .tile.current { outline: 3px solid #f59e0b; outline-offset: 2px; }
 .tile.selected { border-color: var(--selected); box-shadow: inset 0 0 0 2px var(--selected); }
 
+
+.tile.joined-right::after,
+.tile.joined-down::before {
+  content: '';
+  position: absolute;
+  background: var(--join-color, transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.tile.joined-right::after {
+  top: 10%;
+  bottom: 10%;
+  left: 100%;
+  width: var(--grid-gap);
+}
+
+.tile.joined-down::before {
+  left: 10%;
+  right: 10%;
+  top: 100%;
+  height: var(--grid-gap);
+}
+
 .tile-time {
   position: absolute;
   top: 6px;

@@ -35,6 +35,7 @@ const els = {
 
 const state = loadState();
 let isPainting = false;
+let autoRefreshTimer = null;
 
 init();
 
@@ -43,6 +44,7 @@ function init() {
   renderPalette();
   bindGlobalEvents();
   renderAll();
+  startAutoRefresh();
 }
 
 function loadState() {
@@ -78,6 +80,37 @@ function ensureToday() {
   const today = dayKey(new Date());
   if (!state.days[today]) state.days[today] = createEmptyDay();
   state.selectedDay = state.days[state.selectedDay] ? state.selectedDay : today;
+}
+
+function startAutoRefresh() {
+  let lastDayKey = dayKey(new Date());
+  let lastTile = toTileIndex(new Date());
+
+  const tick = () => {
+    const now = new Date();
+    const currentDayKey = dayKey(now);
+    const currentTile = toTileIndex(now);
+
+    if (currentDayKey !== lastDayKey || currentTile !== lastTile) {
+      ensureToday();
+      renderAll();
+      lastDayKey = currentDayKey;
+      lastTile = currentTile;
+    }
+
+    scheduleNextTick();
+  };
+
+  const scheduleNextTick = () => {
+    if (autoRefreshTimer) clearTimeout(autoRefreshTimer);
+    const now = new Date();
+    const msSinceHourStart = (now.getMinutes() * 60 + now.getSeconds()) * 1000 + now.getMilliseconds();
+    const tileDurationMs = TILE_MINUTES * 60 * 1000;
+    const msUntilNextTile = tileDurationMs - (msSinceHourStart % tileDurationMs);
+    autoRefreshTimer = setTimeout(tick, msUntilNextTile + 50);
+  };
+
+  scheduleNextTick();
 }
 
 function renderAll() {

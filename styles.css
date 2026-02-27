@@ -92,6 +92,11 @@ body {
   overflow: hidden;
   isolation: isolate;
 }
+
+.tile.joined-right,
+.tile.joined-down {
+  overflow: visible;
+}
 .tile.future {
   background: color-mix(in srgb, var(--activity-color, #d1d5db) 18%, transparent);
   box-shadow: inset 0 0 0 3px var(--activity-color, transparent);

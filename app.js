@@ -1,6 +1,7 @@
 const TOTAL_TILES = 144;
 const TILE_MINUTES = 10;
 const STORAGE_KEY = 'timetiles-state-v1';
+const MORNING_LINE_HOURS = [6, 8, 10, 12];
 
 const defaultColors = [
   '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16',
@@ -35,7 +36,8 @@ const els = {
   toggleTileConnections: document.getElementById('toggleTileConnections'),
   gridScale: document.getElementById('gridScale'),
   gridScaleValue: document.getElementById('gridScaleValue'),
-  eraserBrushBtn: document.getElementById('eraserBrushBtn')
+  eraserBrushBtn: document.getElementById('eraserBrushBtn'),
+  morningLineTime: document.getElementById('morningLineTime')
 };
 
 const state = loadState();
@@ -76,7 +78,8 @@ function loadState() {
     selectedBrush: null,
     groups: [],
     activities: [],
-    days: { [today]: createEmptyDay() }
+    days: { [today]: createEmptyDay() },
+    daySettings: { [today]: createDefaultDaySettings() }
   };
 }
 
@@ -88,10 +91,28 @@ function createEmptyDay() {
   return Array.from({ length: TOTAL_TILES }, () => ({ activityId: null, comment: '' }));
 }
 
+function createDefaultDaySettings() {
+  return {
+    morningLineHour: null
+  };
+}
+
 function ensureToday() {
   const today = dayKey(new Date());
   if (!state.days[today]) state.days[today] = createEmptyDay();
+  state.daySettings ??= {};
+  ensureDaySettings(today);
   state.selectedDay = state.days[state.selectedDay] ? state.selectedDay : today;
+  ensureDaySettings(state.selectedDay);
+}
+
+function ensureDaySettings(day) {
+  if (!state.daySettings[day]) {
+    state.daySettings[day] = createDefaultDaySettings();
+    return;
+  }
+  const value = Number(state.daySettings[day].morningLineHour);
+  state.daySettings[day].morningLineHour = MORNING_LINE_HOURS.includes(value) ? value : null;
 }
 
 function startAutoRefresh() {
@@ -144,6 +165,10 @@ function renderAll() {
   els.gridScaleValue.textContent = `${state.settings.gridScale}%`;
   document.documentElement.style.setProperty('--center-scale', String(state.settings.gridScale / 100));
   els.eraserBrushBtn.classList.toggle('active', state.selectedBrush?.type === 'erase');
+  ensureDaySettings(state.selectedDay);
+  els.morningLineTime.value = state.daySettings[state.selectedDay].morningLineHour == null
+    ? ''
+    : String(state.daySettings[state.selectedDay].morningLineHour);
   renderDayList();
   renderGrid();
   renderSelectionPanel();
@@ -164,6 +189,7 @@ function renderDayList() {
     btn.textContent = `${isCurrent ? 'Сегодня' : formatDay(key)} (${key})`;
     btn.onclick = () => {
       state.selectedDay = key;
+      ensureDaySettings(key);
       state.selectedTile = null;
       renderAll();
     };
@@ -255,6 +281,26 @@ function renderGrid() {
 
     els.grid.appendChild(tile);
   }
+
+  renderMorningLine();
+}
+
+function renderMorningLine() {
+  const morningHour = state.daySettings[state.selectedDay]?.morningLineHour;
+  if (!MORNING_LINE_HOURS.includes(morningHour)) return;
+
+  const rowStart = morningHour / 2;
+  if (rowStart < 1 || rowStart > 11) return;
+
+  const prevRowTile = els.grid.children[(rowStart - 1) * 12];
+  const nextRowTile = els.grid.children[rowStart * 12];
+  if (!prevRowTile || !nextRowTile) return;
+
+  const line = document.createElement('div');
+  line.className = 'morning-line';
+  const top = (prevRowTile.offsetTop + prevRowTile.offsetHeight + nextRowTile.offsetTop) / 2;
+  line.style.top = `${top - 1}px`;
+  els.grid.appendChild(line);
 }
 
 function renderSelectionPanel() {
@@ -408,6 +454,13 @@ function bindGlobalEvents() {
   els.toggleTileConnections.onchange = (e) => { state.settings.connectTiles = e.target.checked; renderAll(); };
   els.gridScale.oninput = (e) => {
     state.settings.gridScale = clampGridScale(e.target.value);
+    renderAll();
+  };
+
+  els.morningLineTime.onchange = (e) => {
+    ensureDaySettings(state.selectedDay);
+    const nextValue = Number(e.target.value);
+    state.daySettings[state.selectedDay].morningLineHour = MORNING_LINE_HOURS.includes(nextValue) ? nextValue : null;
     renderAll();
   };
 

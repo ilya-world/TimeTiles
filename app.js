@@ -32,6 +32,7 @@ const els = {
   importText: document.getElementById('importText'),
   togglePastDimming: document.getElementById('togglePastDimming'),
   toggleActivityLabels: document.getElementById('toggleActivityLabels'),
+  toggleTileConnections: document.getElementById('toggleTileConnections'),
   eraserBrushBtn: document.getElementById('eraserBrushBtn')
 };
 
@@ -60,7 +61,13 @@ function loadState() {
   }
   const today = dayKey(new Date());
   return {
-    settings: { showTimeLabels: true, darkMode: false, dimPastTiles: true, showActivityLabels: true },
+    settings: {
+      showTimeLabels: true,
+      darkMode: false,
+      dimPastTiles: true,
+      showActivityLabels: true,
+      connectTiles: true
+    },
     selectedDay: today,
     selectedTile: null,
     selectedBrush: null,
@@ -118,6 +125,7 @@ function startAutoRefresh() {
 function renderAll() {
   state.settings.dimPastTiles ??= true;
   state.settings.showActivityLabels ??= true;
+  state.settings.connectTiles ??= true;
   if (!('selectedBrush' in state)) {
     state.selectedBrush = state.selectedBrushId ? { type: 'activity', activityId: state.selectedBrushId } : null;
     delete state.selectedBrushId;
@@ -127,6 +135,7 @@ function renderAll() {
   els.toggleTimeLabels.checked = state.settings.showTimeLabels;
   els.togglePastDimming.checked = state.settings.dimPastTiles;
   els.toggleActivityLabels.checked = state.settings.showActivityLabels;
+  els.toggleTileConnections.checked = state.settings.connectTiles;
   els.eraserBrushBtn.classList.toggle('active', state.selectedBrush?.type === 'erase');
   renderDayList();
   renderGrid();
@@ -178,8 +187,17 @@ function renderGrid() {
 
     const leftSame = i % 12 !== 0 && isSameTileMeta(dayData[i - 1], cellData);
     const rightSame = i % 12 !== 11 && isSameTileMeta(dayData[i + 1], cellData);
+    const upSame = i >= 12 && isSameTileMeta(dayData[i - 12], cellData);
+    const downSame = i < TOTAL_TILES - 12 && isSameTileMeta(dayData[i + 12], cellData);
     if (leftSame) tile.classList.add('connected-left');
     if (rightSame) tile.classList.add('connected-right');
+    if (state.settings.connectTiles) {
+      if (rightSame) tile.classList.add('joined-right');
+      if (downSame) tile.classList.add('joined-down');
+      if (leftSame || rightSame || upSame || downSame) {
+        tile.style.setProperty('--join-color', activity ? lightenColor(activity.color, 0.3) : '#e2e8f0');
+      }
+    }
 
     const [start, end] = tileRange(i);
     const tooltipLines = [`${start}-${end}`, activity ? activity.name : 'Без активности'];
@@ -380,6 +398,7 @@ function bindGlobalEvents() {
   els.toggleTimeLabels.onchange = (e) => { state.settings.showTimeLabels = e.target.checked; renderAll(); };
   els.togglePastDimming.onchange = (e) => { state.settings.dimPastTiles = e.target.checked; renderAll(); };
   els.toggleActivityLabels.onchange = (e) => { state.settings.showActivityLabels = e.target.checked; renderAll(); };
+  els.toggleTileConnections.onchange = (e) => { state.settings.connectTiles = e.target.checked; renderAll(); };
 
   els.eraserBrushBtn.onclick = () => {
     state.selectedBrush = state.selectedBrush?.type === 'erase' ? null : { type: 'erase' };
@@ -548,6 +567,13 @@ function uid() {
 
 function isSameTileMeta(a, b) {
   return a && b && a.activityId && a.activityId === b.activityId && (a.comment || '') === (b.comment || '');
+}
+
+function lightenColor(hex, ratio = 0.3) {
+  const safe = /^#([0-9a-f]{6})$/i.test(hex) ? hex : '#cbd5e1';
+  const [r, g, b] = [1, 3, 5].map((offset) => parseInt(safe.slice(offset, offset + 2), 16));
+  const mix = (value) => Math.round(value + (255 - value) * ratio);
+  return `rgb(${mix(r)} ${mix(g)} ${mix(b)})`;
 }
 
 function showTooltip(e, text) {

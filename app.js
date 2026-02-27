@@ -33,6 +33,8 @@ const els = {
   togglePastDimming: document.getElementById('togglePastDimming'),
   toggleActivityLabels: document.getElementById('toggleActivityLabels'),
   toggleTileConnections: document.getElementById('toggleTileConnections'),
+  gridScale: document.getElementById('gridScale'),
+  gridScaleValue: document.getElementById('gridScaleValue'),
   eraserBrushBtn: document.getElementById('eraserBrushBtn')
 };
 
@@ -66,7 +68,8 @@ function loadState() {
       darkMode: false,
       dimPastTiles: true,
       showActivityLabels: true,
-      connectTiles: true
+      connectTiles: true,
+      gridScale: 100
     },
     selectedDay: today,
     selectedTile: null,
@@ -126,6 +129,7 @@ function renderAll() {
   state.settings.dimPastTiles ??= true;
   state.settings.showActivityLabels ??= true;
   state.settings.connectTiles ??= true;
+  state.settings.gridScale = clampGridScale(state.settings.gridScale ?? 100);
   if (!('selectedBrush' in state)) {
     state.selectedBrush = state.selectedBrushId ? { type: 'activity', activityId: state.selectedBrushId } : null;
     delete state.selectedBrushId;
@@ -136,6 +140,9 @@ function renderAll() {
   els.togglePastDimming.checked = state.settings.dimPastTiles;
   els.toggleActivityLabels.checked = state.settings.showActivityLabels;
   els.toggleTileConnections.checked = state.settings.connectTiles;
+  els.gridScale.value = String(state.settings.gridScale);
+  els.gridScaleValue.textContent = `${state.settings.gridScale}%`;
+  document.documentElement.style.setProperty('--center-scale', String(state.settings.gridScale / 100));
   els.eraserBrushBtn.classList.toggle('active', state.selectedBrush?.type === 'erase');
   renderDayList();
   renderGrid();
@@ -399,6 +406,10 @@ function bindGlobalEvents() {
   els.togglePastDimming.onchange = (e) => { state.settings.dimPastTiles = e.target.checked; renderAll(); };
   els.toggleActivityLabels.onchange = (e) => { state.settings.showActivityLabels = e.target.checked; renderAll(); };
   els.toggleTileConnections.onchange = (e) => { state.settings.connectTiles = e.target.checked; renderAll(); };
+  els.gridScale.oninput = (e) => {
+    state.settings.gridScale = clampGridScale(e.target.value);
+    renderAll();
+  };
 
   els.eraserBrushBtn.onclick = () => {
     state.selectedBrush = state.selectedBrush?.type === 'erase' ? null : { type: 'erase' };
@@ -645,4 +656,10 @@ function clearDropIndicators() {
   els.groupsContainer.querySelectorAll('.activity-brush, .activities').forEach((node) => {
     node.classList.remove('drop-before', 'drop-after', 'drop-target', 'dragging');
   });
+}
+
+function clampGridScale(value) {
+  const num = Number(value);
+  if (Number.isNaN(num)) return 100;
+  return Math.max(50, Math.min(100, Math.round(num)));
 }

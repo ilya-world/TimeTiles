@@ -7,6 +7,7 @@
   --border: #d5d9e3;
   --selected: #0f172a;
   --center-scale: 1;
+  --join-overlap: 3px;
 }
 
 body.dark {
@@ -100,9 +101,11 @@ body {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
   gap: var(--grid-gap);
+  overflow: visible;
 }
 .tile {
   position: relative;
+  z-index: 1;
   aspect-ratio: 1;
   border-radius: 12px;
   border: 1px solid var(--border);
@@ -131,21 +134,21 @@ body {
   position: absolute;
   background: var(--join-color, transparent);
   pointer-events: none;
-  z-index: 1;
+  z-index: -1;
 }
 
 .tile.joined-right::after {
-  top: 10%;
-  bottom: 10%;
-  left: 100%;
-  width: var(--grid-gap);
+  top: 12%;
+  bottom: 12%;
+  left: calc(100% - var(--join-overlap));
+  width: calc(var(--grid-gap) + (var(--join-overlap) * 2));
 }
 
 .tile.joined-down::before {
-  left: 10%;
-  right: 10%;
-  top: 100%;
-  height: var(--grid-gap);
+  left: 12%;
+  right: 12%;
+  top: calc(100% - var(--join-overlap));
+  height: calc(var(--grid-gap) + (var(--join-overlap) * 2));
 }
 
 .tile-time {

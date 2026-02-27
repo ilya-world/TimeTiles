@@ -74,6 +74,21 @@ body {
   width: 100%;
 }
 
+.day-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.day-setting select {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  border-radius: 8px;
+  padding: 7px;
+}
+
 .btn {
   border: 1px solid var(--border);
   background: transparent;
@@ -98,10 +113,28 @@ body {
 .center-header p { margin: 4px 0 0; color: var(--muted); }
 
 .grid {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(12, 1fr);
   gap: var(--grid-gap);
   overflow: visible;
+}
+
+.morning-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #ef4444;
+  border-radius: 999px;
+  pointer-events: none;
+  z-index: 8;
+  box-shadow: 0 0 0 1px #ffffff99;
+}
+
+body.dark .morning-line {
+  background: #f97316;
+  box-shadow: 0 0 0 1px #00000099;
 }
 .tile {
   position: relative;

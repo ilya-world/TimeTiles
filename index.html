@@ -59,6 +59,20 @@
         <section class="section">
           <button id="openImportModal" class="btn btn-primary">Импорт</button>
         </section>
+
+        <section class="section auth-section">
+          <h2>Профиль</h2>
+          <p id="authStatus" class="auth-status">Не авторизован</p>
+          <div id="authForm" class="auth-form">
+            <input type="email" id="authEmail" placeholder="email@example.com" autocomplete="email" />
+            <input type="password" id="authPassword" placeholder="Пароль" autocomplete="current-password" />
+            <div class="auth-actions">
+              <button id="authLoginBtn" class="btn">Войти</button>
+              <button id="authRegisterBtn" class="btn btn-primary">Регистрация</button>
+            </div>
+          </div>
+          <button id="authLogoutBtn" class="btn" hidden>Выйти</button>
+        </section>
       </aside>
 
       <main class="panel panel-center">

@@ -2,6 +2,8 @@ const TOTAL_TILES = 144;
 const TILE_MINUTES = 10;
 const STORAGE_KEY = 'timetiles-state-v1';
 const MORNING_LINE_HOURS = [6, 8, 10, 12];
+const AUTH_STORAGE_KEY = 'timetiles-auth-email-v1';
+const SYNC_DEBOUNCE_MS = 1500;
 
 const defaultColors = [
   '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16',
@@ -37,12 +39,28 @@ const els = {
   gridScale: document.getElementById('gridScale'),
   gridScaleValue: document.getElementById('gridScaleValue'),
   eraserBrushBtn: document.getElementById('eraserBrushBtn'),
-  morningLineTime: document.getElementById('morningLineTime')
+  morningLineTime: document.getElementById('morningLineTime'),
+  authStatus: document.getElementById('authStatus'),
+  authForm: document.getElementById('authForm'),
+  authEmail: document.getElementById('authEmail'),
+  authPassword: document.getElementById('authPassword'),
+  authLoginBtn: document.getElementById('authLoginBtn'),
+  authRegisterBtn: document.getElementById('authRegisterBtn'),
+  authLogoutBtn: document.getElementById('authLogoutBtn')
 };
 
 const state = loadState();
 let isPainting = false;
 let autoRefreshTimer = null;
+let syncTimer = null;
+let syncInFlight = false;
+let syncQueued = false;
+let suppressRemoteSync = false;
+
+const authState = {
+  authenticated: false,
+  user: null
+};
 
 init();
 
@@ -52,6 +70,8 @@ function init() {
   bindGlobalEvents();
   renderAll();
   startAutoRefresh();
+  initializeAuth();
+  setInterval(() => queueBackgroundSync(true), 60000);
 }
 
 function loadState() {
@@ -85,6 +105,7 @@ function loadState() {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  queueBackgroundSync();
 }
 
 function createEmptyDay() {
@@ -511,6 +532,9 @@ function bindGlobalEvents() {
     saveState();
   });
 
+  els.authLoginBtn.onclick = () => handleAuth('login');
+  els.authRegisterBtn.onclick = () => handleAuth('register');
+  els.authLogoutBtn.onclick = handleLogout;
 
   els.openImportModal.onclick = () => els.importModal.showModal();
 
@@ -709,6 +733,154 @@ function clearDropIndicators() {
   els.groupsContainer.querySelectorAll('.activity-brush, .activities').forEach((node) => {
     node.classList.remove('drop-before', 'drop-after', 'drop-target', 'dragging');
   });
+}
+
+
+function setAuthUI() {
+  if (authState.authenticated && authState.user) {
+    els.authStatus.textContent = `Выполнен вход: ${authState.user.email}`;
+    els.authForm.hidden = true;
+    els.authLogoutBtn.hidden = false;
+  } else {
+    els.authStatus.textContent = 'Не авторизован (данные хранятся только локально)';
+    els.authForm.hidden = false;
+    els.authLogoutBtn.hidden = true;
+  }
+}
+
+async function initializeAuth() {
+  const rememberedEmail = localStorage.getItem(AUTH_STORAGE_KEY);
+  if (rememberedEmail) els.authEmail.value = rememberedEmail;
+
+  setAuthUI();
+  try {
+    const me = await apiRequest('api/auth.php?action=me');
+    if (me.authenticated) {
+      authState.authenticated = true;
+      authState.user = me.user;
+      if (me.user && me.user.email) localStorage.setItem(AUTH_STORAGE_KEY, me.user.email);
+      await pullRemoteProfile();
+      queueBackgroundSync(true);
+    }
+  } catch (err) {
+    console.warn('Auth init failed', err);
+  }
+  setAuthUI();
+}
+
+async function handleAuth(action) {
+  const email = els.authEmail.value.trim();
+  const password = els.authPassword.value;
+
+  try {
+    const data = await apiRequest(`api/auth.php?action=${action}`, {
+      method: 'POST',
+      body: JSON.stringify({ email, password })
+    });
+
+    authState.authenticated = true;
+    authState.user = data.user;
+    localStorage.setItem(AUTH_STORAGE_KEY, data.user.email);
+    els.authPassword.value = '';
+    await pullRemoteProfile();
+    setAuthUI();
+    queueBackgroundSync(true);
+  } catch (err) {
+    alert(err.message || 'Ошибка авторизации');
+  }
+}
+
+async function handleLogout() {
+  try {
+    await apiRequest('api/auth.php?action=logout', { method: 'POST' });
+  } catch (err) {
+    console.warn('Logout warning', err);
+  }
+  authState.authenticated = false;
+  authState.user = null;
+  setAuthUI();
+}
+
+async function pullRemoteProfile() {
+  if (!authState.authenticated) return;
+
+  try {
+    const data = await apiRequest('api/sync.php');
+    const remoteState = data.profile && data.profile.state;
+    if (!remoteState || typeof remoteState !== 'object') return;
+
+    suppressRemoteSync = true;
+    replaceState(normalizeState(remoteState));
+    ensureToday();
+    renderAll();
+  } catch (err) {
+    console.warn('Pull profile failed', err);
+  } finally {
+    suppressRemoteSync = false;
+  }
+}
+
+function replaceState(nextState) {
+  Object.keys(state).forEach((key) => { delete state[key]; });
+  Object.assign(state, nextState);
+}
+
+function normalizeState(candidate) {
+  const base = loadState();
+  const next = Object.assign({}, base, candidate);
+  next.settings = Object.assign({}, base.settings, candidate.settings || {});
+  next.groups = Array.isArray(candidate.groups) ? candidate.groups : [];
+  next.activities = Array.isArray(candidate.activities) ? candidate.activities : [];
+  next.days = candidate.days && typeof candidate.days === 'object' ? candidate.days : base.days;
+  next.daySettings = candidate.daySettings && typeof candidate.daySettings === 'object' ? candidate.daySettings : base.daySettings;
+  return next;
+}
+
+function queueBackgroundSync(force = false) {
+  if (!authState.authenticated || suppressRemoteSync) return;
+  syncQueued = true;
+  if (force) {
+    if (syncTimer) clearTimeout(syncTimer);
+    syncTimer = setTimeout(flushBackgroundSync, 0);
+    return;
+  }
+  if (syncTimer) return;
+  syncTimer = setTimeout(flushBackgroundSync, SYNC_DEBOUNCE_MS);
+}
+
+async function flushBackgroundSync() {
+  syncTimer = null;
+  if (!authState.authenticated || !syncQueued || syncInFlight || suppressRemoteSync) return;
+
+  syncInFlight = true;
+  syncQueued = false;
+
+  try {
+    await apiRequest('api/sync.php', {
+      method: 'POST',
+      body: JSON.stringify({ state })
+    });
+  } catch (err) {
+    console.warn('Background sync failed', err);
+    syncQueued = true;
+  } finally {
+    syncInFlight = false;
+    if (syncQueued) queueBackgroundSync();
+  }
+}
+
+async function apiRequest(url, options = {}) {
+  const response = await fetch(url, Object.assign({
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'same-origin'
+  }, options));
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) {
+    throw new Error(data.error || `HTTP ${response.status}`);
+  }
+
+  return data;
 }
 
 function clampGridScale(value) {

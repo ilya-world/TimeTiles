@@ -778,13 +778,21 @@ async function handleAuth(action) {
       body: JSON.stringify({ email, password })
     });
 
-    if (!data.user || !data.user.email) {
+    let user = data.user;
+    if (!user || !user.email) {
+      const me = await apiRequest('api/auth.php?action=me');
+      if (me && me.authenticated && me.user && me.user.email) {
+        user = me.user;
+      }
+    }
+
+    if (!user || !user.email) {
       throw new Error('Сервер вернул некорректный ответ авторизации');
     }
 
     authState.authenticated = true;
-    authState.user = data.user;
-    localStorage.setItem(AUTH_STORAGE_KEY, data.user.email);
+    authState.user = user;
+    localStorage.setItem(AUTH_STORAGE_KEY, user.email);
     els.authPassword.value = '';
     await pullRemoteProfile();
     setAuthUI();

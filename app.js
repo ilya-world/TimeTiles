@@ -778,6 +778,10 @@ async function handleAuth(action) {
       body: JSON.stringify({ email, password })
     });
 
+    if (!data.user || !data.user.email) {
+      throw new Error('Сервер вернул некорректный ответ авторизации');
+    }
+
     authState.authenticated = true;
     authState.user = data.user;
     localStorage.setItem(AUTH_STORAGE_KEY, data.user.email);

@@ -29,7 +29,7 @@ ensureSchema($mysqli);
 function ensureSchema($mysqli) {
     $usersSql = "CREATE TABLE IF NOT EXISTS users (
         id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        email VARCHAR(255) NOT NULL UNIQUE,
+        email VARCHAR(191) NOT NULL UNIQUE,
         password_hash VARCHAR(255) NOT NULL,
         created_at DATETIME NOT NULL,
         updated_at DATETIME NOT NULL
@@ -110,6 +110,9 @@ function requireAuth() {
 function normalizeEmail($email) {
     $normalized = trim(mb_strtolower($email, 'UTF-8'));
     if (!filter_var($normalized, FILTER_VALIDATE_EMAIL)) {
+        return '';
+    }
+    if (mb_strlen($normalized, 'UTF-8') > 191) {
         return '';
     }
     return $normalized;

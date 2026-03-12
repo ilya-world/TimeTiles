@@ -10,7 +10,7 @@ if ($method === 'GET' && $action === 'me') {
     }
 
     $userId = (int)$_SESSION['user_id'];
-    $stmt = $mysqli->prepare('SELECT email FROM users WHERE id = ? LIMIT 1');
+    $stmt = dbPrepare($mysqli, 'SELECT email FROM users WHERE id = ? LIMIT 1');
     $stmt->bind_param('i', $userId);
     $stmt->execute();
     $stmt->bind_result($email);
@@ -49,7 +49,7 @@ if (!$email || strlen($password) < 4) {
 }
 
 if ($action === 'register') {
-    $check = $mysqli->prepare('SELECT id FROM users WHERE email = ? LIMIT 1');
+    $check = dbPrepare($mysqli, 'SELECT id FROM users WHERE email = ? LIMIT 1');
     $check->bind_param('s', $email);
     $check->execute();
     $check->store_result();
@@ -61,7 +61,7 @@ if ($action === 'register') {
 
     $hash = password_hash($password, PASSWORD_BCRYPT);
     $now = date('Y-m-d H:i:s');
-    $insert = $mysqli->prepare('INSERT INTO users (email, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?)');
+    $insert = dbPrepare($mysqli, 'INSERT INTO users (email, password_hash, created_at, updated_at) VALUES (?, ?, ?, ?)');
     $insert->bind_param('ssss', $email, $hash, $now, $now);
     if (!$insert->execute()) {
         $insert->close();
@@ -75,7 +75,7 @@ if ($action === 'register') {
 }
 
 if ($action === 'login') {
-    $stmt = $mysqli->prepare('SELECT id, password_hash FROM users WHERE email = ? LIMIT 1');
+    $stmt = dbPrepare($mysqli, 'SELECT id, password_hash FROM users WHERE email = ? LIMIT 1');
     $stmt->bind_param('s', $email);
     $stmt->execute();
     $stmt->bind_result($userId, $passwordHash);

@@ -5,7 +5,7 @@ $userId = requireAuth();
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
-    $stmt = $mysqli->prepare('SELECT state_json, updated_at FROM user_profiles WHERE user_id = ? LIMIT 1');
+    $stmt = dbPrepare($mysqli, 'SELECT state_json, updated_at FROM user_profiles WHERE user_id = ? LIMIT 1');
     $stmt->bind_param('i', $userId);
     $stmt->execute();
     $stmt->bind_result($stateJson, $updatedAt);
@@ -39,7 +39,7 @@ if ($method === 'POST') {
 
     $now = date('Y-m-d H:i:s');
 
-    $exists = $mysqli->prepare('SELECT user_id FROM user_profiles WHERE user_id = ? LIMIT 1');
+    $exists = dbPrepare($mysqli, 'SELECT user_id FROM user_profiles WHERE user_id = ? LIMIT 1');
     $exists->bind_param('i', $userId);
     $exists->execute();
     $exists->store_result();
@@ -47,12 +47,12 @@ if ($method === 'POST') {
     $exists->close();
 
     if ($hasRow) {
-        $update = $mysqli->prepare('UPDATE user_profiles SET state_json = ?, updated_at = ? WHERE user_id = ?');
+        $update = dbPrepare($mysqli, 'UPDATE user_profiles SET state_json = ?, updated_at = ? WHERE user_id = ?');
         $update->bind_param('ssi', $stateJson, $now, $userId);
         $update->execute();
         $update->close();
     } else {
-        $insert = $mysqli->prepare('INSERT INTO user_profiles (user_id, state_json, updated_at) VALUES (?, ?, ?)');
+        $insert = dbPrepare($mysqli, 'INSERT INTO user_profiles (user_id, state_json, updated_at) VALUES (?, ?, ?)');
         $insert->bind_param('iss', $userId, $stateJson, $now);
         $insert->execute();
         $insert->close();

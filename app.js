@@ -889,7 +889,9 @@ async function apiRequest(url, options = {}) {
 
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data.ok === false) {
-    throw new Error(data.error || `HTTP ${response.status}`);
+    const baseMessage = data.error || `HTTP ${response.status}`;
+    const debugSuffix = data.debug ? `\n\nDebug: ${JSON.stringify(data.debug)}` : '';
+    throw new Error(baseMessage + debugSuffix);
   }
 
   return data;

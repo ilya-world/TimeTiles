@@ -12,3 +12,11 @@ CREATE TABLE IF NOT EXISTS user_profiles (
     updated_at DATETIME NOT NULL,
     CONSTRAINT fk_user_profiles_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS user_share_tokens (
+    user_id INT UNSIGNED NOT NULL PRIMARY KEY,
+    share_token CHAR(64) NOT NULL UNIQUE,
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL,
+    CONSTRAINT fk_user_share_tokens_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

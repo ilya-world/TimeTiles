@@ -4,6 +4,7 @@ const STORAGE_KEY = 'timetiles-state-v1';
 const MORNING_LINE_HOURS = [6, 8, 10, 12];
 const AUTH_STORAGE_KEY = 'timetiles-auth-email-v1';
 const SYNC_DEBOUNCE_MS = 1500;
+const SHARE_LINK_REFRESH_MS = 60000;
 
 const defaultColors = [
   '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16',
@@ -47,7 +48,10 @@ const els = {
   authLoginBtn: document.getElementById('authLoginBtn'),
   authRegisterBtn: document.getElementById('authRegisterBtn'),
   authLogoutBtn: document.getElementById('authLogoutBtn'),
-  syncProfileBtn: document.getElementById('syncProfileBtn')
+  syncProfileBtn: document.getElementById('syncProfileBtn'),
+  shareSection: document.getElementById('shareSection'),
+  shareLinkInput: document.getElementById('shareLinkInput'),
+  copyShareLinkBtn: document.getElementById('copyShareLinkBtn')
 };
 
 const state = loadState();
@@ -60,7 +64,8 @@ let suppressRemoteSync = false;
 
 const authState = {
   authenticated: false,
-  user: null
+  user: null,
+  shareToken: null
 };
 
 init();
@@ -73,6 +78,7 @@ function init() {
   startAutoRefresh();
   initializeAuth();
   setInterval(() => queueBackgroundSync(true), 60000);
+  setInterval(() => refreshShareLink(), SHARE_LINK_REFRESH_MS);
 }
 
 function loadState() {
@@ -537,6 +543,7 @@ function bindGlobalEvents() {
   els.authRegisterBtn.onclick = () => handleAuth('register');
   els.authLogoutBtn.onclick = handleLogout;
   els.syncProfileBtn.onclick = handleManualSync;
+  els.copyShareLinkBtn.onclick = copyShareLink;
 
   els.openImportModal.onclick = () => els.importModal.showModal();
 
@@ -745,12 +752,18 @@ function setAuthUI() {
     els.authLogoutBtn.hidden = false;
     els.syncProfileBtn.disabled = false;
     els.syncProfileBtn.title = 'Синхронизировать профиль';
+    els.shareSection.hidden = false;
+    els.shareLinkInput.value = buildShareLink(authState.shareToken);
+    els.copyShareLinkBtn.disabled = !authState.shareToken;
   } else {
     els.authStatus.textContent = 'Не авторизован (данные хранятся только локально)';
     els.authForm.hidden = false;
     els.authLogoutBtn.hidden = true;
     els.syncProfileBtn.disabled = true;
     els.syncProfileBtn.title = 'Войдите, чтобы синхронизировать профиль';
+    els.shareSection.hidden = true;
+    els.shareLinkInput.value = '';
+    els.copyShareLinkBtn.disabled = true;
   }
 }
 
@@ -766,6 +779,7 @@ async function initializeAuth() {
       authState.user = me.user;
       if (me.user && me.user.email) localStorage.setItem(AUTH_STORAGE_KEY, me.user.email);
       await pullRemoteProfile();
+      await refreshShareLink();
       queueBackgroundSync(true);
     }
   } catch (err) {
@@ -801,6 +815,7 @@ async function handleAuth(action) {
     localStorage.setItem(AUTH_STORAGE_KEY, user.email);
     els.authPassword.value = '';
     await pullRemoteProfile();
+    await refreshShareLink();
     setAuthUI();
     queueBackgroundSync(true);
   } catch (err) {
@@ -816,6 +831,7 @@ async function handleLogout() {
   }
   authState.authenticated = false;
   authState.user = null;
+  authState.shareToken = null;
   setAuthUI();
 }
 
@@ -826,6 +842,7 @@ async function handleManualSync() {
   els.syncProfileBtn.textContent = '⟳';
   try {
     await pullRemoteProfile();
+    await refreshShareLink();
     queueBackgroundSync(true);
   } catch (err) {
     console.warn('Manual sync failed', err);
@@ -929,6 +946,45 @@ async function apiRequest(url, options = {}) {
   }
 
   return data;
+}
+
+
+
+async function refreshShareLink() {
+  if (!authState.authenticated) return;
+
+  try {
+    const data = await apiRequest('api/share.php');
+    if (data && data.ok && data.shareToken) {
+      authState.shareToken = data.shareToken;
+      setAuthUI();
+    }
+  } catch (err) {
+    console.warn('Share link refresh failed', err);
+  }
+}
+
+function buildShareLink(token) {
+  if (!token) return '';
+  const url = new URL('share.html', window.location.href);
+  url.searchParams.set('token', token);
+  return url.toString();
+}
+
+async function copyShareLink() {
+  const link = buildShareLink(authState.shareToken);
+  if (!link) return;
+
+  try {
+    await navigator.clipboard.writeText(link);
+    const original = els.copyShareLinkBtn.textContent;
+    els.copyShareLinkBtn.textContent = 'Скопировано';
+    setTimeout(() => {
+      els.copyShareLinkBtn.textContent = original;
+    }, 1200);
+  } catch (err) {
+    console.warn('Copy share link failed', err);
+  }
 }
 
 function clampGridScale(value) {

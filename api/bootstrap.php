@@ -42,6 +42,14 @@ function ensureSchema($mysqli) {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
 
+    $shareTokensSql = "CREATE TABLE IF NOT EXISTS user_share_tokens (
+        user_id INT UNSIGNED NOT NULL PRIMARY KEY,
+        share_token CHAR(64) NOT NULL UNIQUE,
+        created_at DATETIME NOT NULL,
+        updated_at DATETIME NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+
     if (!$mysqli->query($usersSql)) {
         respondError('DB schema initialization failed (users)', 500, array(
             'dbError' => $mysqli->error,
@@ -55,6 +63,14 @@ function ensureSchema($mysqli) {
             'dbErrno' => $mysqli->errno,
         ));
     }
+
+    if (!$mysqli->query($shareTokensSql)) {
+        respondError('DB schema initialization failed (user_share_tokens)', 500, array(
+            'dbError' => $mysqli->error,
+            'dbErrno' => $mysqli->errno,
+        ));
+    }
+
 }
 
 function dbPrepare($mysqli, $sql) {

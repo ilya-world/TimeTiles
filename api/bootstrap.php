@@ -6,6 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 $config = require __DIR__ . '/config.php';
+$debugMode = !empty($config['debug']) || getenv('TIMETILES_DEBUG') === '1';
 
 $mysqli = new mysqli(
     $config['db_host'],
@@ -16,16 +17,13 @@ $mysqli = new mysqli(
 );
 
 if ($mysqli->connect_errno) {
-    http_response_code(500);
-    echo json_encode(array(
-        'ok' => false,
-        'error' => 'DB connection failed',
+    respondError('DB connection failed', 500, array(
+        'dbError' => $mysqli->connect_error,
+        'dbErrno' => $mysqli->connect_errno,
     ));
-    exit;
 }
 
 $mysqli->set_charset('utf8mb4');
-
 ensureSchema($mysqli);
 
 function ensureSchema($mysqli) {
@@ -44,8 +42,32 @@ function ensureSchema($mysqli) {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
 
-    $mysqli->query($usersSql);
-    $mysqli->query($profilesSql);
+    if (!$mysqli->query($usersSql)) {
+        respondError('DB schema initialization failed (users)', 500, array(
+            'dbError' => $mysqli->error,
+            'dbErrno' => $mysqli->errno,
+        ));
+    }
+
+    if (!$mysqli->query($profilesSql)) {
+        respondError('DB schema initialization failed (user_profiles)', 500, array(
+            'dbError' => $mysqli->error,
+            'dbErrno' => $mysqli->errno,
+        ));
+    }
+}
+
+function dbPrepare($mysqli, $sql) {
+    $stmt = $mysqli->prepare($sql);
+    if ($stmt === false) {
+        respondError('DB prepare failed', 500, array(
+            'dbError' => $mysqli->error,
+            'dbErrno' => $mysqli->errno,
+            'sql' => $sql,
+        ));
+    }
+
+    return $stmt;
 }
 
 function jsonInput() {
@@ -62,6 +84,20 @@ function respond($payload, $statusCode) {
     http_response_code($statusCode);
     echo json_encode($payload, JSON_UNESCAPED_UNICODE);
     exit;
+}
+
+function respondError($message, $statusCode, $details = array()) {
+    $payload = array(
+        'ok' => false,
+        'error' => $message,
+    );
+
+    global $debugMode;
+    if ($debugMode) {
+        $payload['debug'] = $details;
+    }
+
+    respond($payload, $statusCode);
 }
 
 function requireAuth() {

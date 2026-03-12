@@ -46,7 +46,8 @@ const els = {
   authPassword: document.getElementById('authPassword'),
   authLoginBtn: document.getElementById('authLoginBtn'),
   authRegisterBtn: document.getElementById('authRegisterBtn'),
-  authLogoutBtn: document.getElementById('authLogoutBtn')
+  authLogoutBtn: document.getElementById('authLogoutBtn'),
+  syncProfileBtn: document.getElementById('syncProfileBtn')
 };
 
 const state = loadState();
@@ -535,6 +536,7 @@ function bindGlobalEvents() {
   els.authLoginBtn.onclick = () => handleAuth('login');
   els.authRegisterBtn.onclick = () => handleAuth('register');
   els.authLogoutBtn.onclick = handleLogout;
+  els.syncProfileBtn.onclick = handleManualSync;
 
   els.openImportModal.onclick = () => els.importModal.showModal();
 
@@ -741,10 +743,14 @@ function setAuthUI() {
     els.authStatus.textContent = `Выполнен вход: ${authState.user.email}`;
     els.authForm.hidden = true;
     els.authLogoutBtn.hidden = false;
+    els.syncProfileBtn.disabled = false;
+    els.syncProfileBtn.title = 'Синхронизировать профиль';
   } else {
     els.authStatus.textContent = 'Не авторизован (данные хранятся только локально)';
     els.authForm.hidden = false;
     els.authLogoutBtn.hidden = true;
+    els.syncProfileBtn.disabled = true;
+    els.syncProfileBtn.title = 'Войдите, чтобы синхронизировать профиль';
   }
 }
 
@@ -813,6 +819,22 @@ async function handleLogout() {
   setAuthUI();
 }
 
+async function handleManualSync() {
+  if (!authState.authenticated) return;
+  const originalLabel = els.syncProfileBtn.textContent;
+  els.syncProfileBtn.disabled = true;
+  els.syncProfileBtn.textContent = '⟳';
+  try {
+    await pullRemoteProfile();
+    queueBackgroundSync(true);
+  } catch (err) {
+    console.warn('Manual sync failed', err);
+  } finally {
+    els.syncProfileBtn.textContent = originalLabel;
+    setAuthUI();
+  }
+}
+
 async function pullRemoteProfile() {
   if (!authState.authenticated) return;
 
@@ -822,7 +844,10 @@ async function pullRemoteProfile() {
     if (!remoteState || typeof remoteState !== 'object') return;
 
     suppressRemoteSync = true;
-    replaceState(normalizeState(remoteState));
+    const localGridScale = clampGridScale(state.settings?.gridScale ?? 100);
+    const mergedState = normalizeState(remoteState);
+    mergedState.settings.gridScale = localGridScale;
+    replaceState(mergedState);
     ensureToday();
     renderAll();
   } catch (err) {
@@ -868,9 +893,10 @@ async function flushBackgroundSync() {
   syncQueued = false;
 
   try {
+    const syncState = serializeStateForSync();
     await apiRequest('api/sync.php', {
       method: 'POST',
-      body: JSON.stringify({ state })
+      body: JSON.stringify({ state: syncState })
     });
   } catch (err) {
     console.warn('Background sync failed', err);
@@ -879,6 +905,14 @@ async function flushBackgroundSync() {
     syncInFlight = false;
     if (syncQueued) queueBackgroundSync();
   }
+}
+
+function serializeStateForSync() {
+  const syncState = JSON.parse(JSON.stringify(state));
+  if (syncState.settings && typeof syncState.settings === 'object') {
+    delete syncState.settings.gridScale;
+  }
+  return syncState;
 }
 
 async function apiRequest(url, options = {}) {

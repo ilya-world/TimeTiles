@@ -10,7 +10,10 @@
     <div class="app-shell">
       <aside class="panel panel-left">
         <div class="logo-block">
-          <h1>TimeTiles</h1>
+          <div class="logo-title-row">
+            <h1>TimeTiles</h1>
+            <button id="syncProfileBtn" class="icon-btn icon-refresh" title="Синхронизировать профиль" aria-label="Синхронизировать профиль">↻</button>
+          </div>
           <p>Сутки как мозаика из 10-минутных плиток</p>
         </div>
 
@@ -126,7 +129,8 @@
       <form method="dialog" class="modal-content" id="importForm">
         <h3>Импорт встреч</h3>
         <p>Каждая строка: <code>XX:XX-YY:YY NAME</code></p>
-        <textarea id="importText" rows="10" placeholder="09:00-09:45 Standup\n13:10-14:00 Demo"></textarea>
+        <textarea id="importText" rows="10" placeholder="09:00-09:45 Standup
+13:10-14:00 Demo"></textarea>
         <div class="modal-actions">
           <button class="btn" value="cancel">Отмена</button>
           <button class="btn btn-primary" id="applyImport" value="default">Импортировать</button>

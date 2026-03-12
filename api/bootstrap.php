@@ -71,6 +71,53 @@ function ensureSchema($mysqli) {
         ));
     }
 
+    ensureLegacySchemaCompatibility($mysqli);
+
+}
+
+function ensureLegacySchemaCompatibility($mysqli) {
+    // Some deployments were created before all timestamp columns were added.
+    // CREATE TABLE IF NOT EXISTS does not alter existing tables, so we patch them manually.
+    ensureColumnExists($mysqli, 'user_share_tokens', 'created_at', 'DATETIME NULL');
+    ensureColumnExists($mysqli, 'user_share_tokens', 'updated_at', 'DATETIME NULL');
+
+    // Backfill null timestamps so new code can rely on these fields.
+    if (!$mysqli->query("UPDATE user_share_tokens SET created_at = COALESCE(created_at, NOW()), updated_at = COALESCE(updated_at, created_at, NOW())")) {
+        respondError('DB schema compatibility update failed (user_share_tokens timestamps)', 500, array(
+            'dbError' => $mysqli->error,
+            'dbErrno' => $mysqli->errno,
+        ));
+    }
+}
+
+function ensureColumnExists($mysqli, $table, $column, $definition) {
+    $tableEscaped = $mysqli->real_escape_string($table);
+    $columnEscaped = $mysqli->real_escape_string($column);
+    $checkSql = "SHOW COLUMNS FROM `{$tableEscaped}` LIKE '{$columnEscaped}'";
+    $checkResult = $mysqli->query($checkSql);
+
+    if ($checkResult === false) {
+        respondError('DB schema compatibility check failed', 500, array(
+            'dbError' => $mysqli->error,
+            'dbErrno' => $mysqli->errno,
+            'sql' => $checkSql,
+        ));
+    }
+
+    $exists = $checkResult->num_rows > 0;
+    $checkResult->close();
+    if ($exists) {
+        return;
+    }
+
+    $alterSql = "ALTER TABLE `{$tableEscaped}` ADD COLUMN `{$columnEscaped}` {$definition}";
+    if (!$mysqli->query($alterSql)) {
+        respondError('DB schema compatibility migration failed', 500, array(
+            'dbError' => $mysqli->error,
+            'dbErrno' => $mysqli->errno,
+            'sql' => $alterSql,
+        ));
+    }
 }
 
 function dbPrepare($mysqli, $sql) {

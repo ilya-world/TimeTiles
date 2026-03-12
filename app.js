@@ -754,6 +754,9 @@ function setAuthUI() {
     els.syncProfileBtn.title = 'Синхронизировать профиль';
     els.shareSection.hidden = false;
     els.shareLinkInput.value = buildShareLink(authState.shareToken);
+    els.shareLinkInput.placeholder = authState.shareToken
+      ? ''
+      : 'Ссылка генерируется...';
     els.copyShareLinkBtn.disabled = !authState.shareToken;
   } else {
     els.authStatus.textContent = 'Не авторизован (данные хранятся только локально)';
@@ -763,6 +766,7 @@ function setAuthUI() {
     els.syncProfileBtn.title = 'Войдите, чтобы синхронизировать профиль';
     els.shareSection.hidden = true;
     els.shareLinkInput.value = '';
+    els.shareLinkInput.placeholder = 'Сначала войдите в профиль';
     els.copyShareLinkBtn.disabled = true;
   }
 }
@@ -955,12 +959,13 @@ async function refreshShareLink() {
 
   try {
     const data = await apiRequest('api/share.php');
-    if (data && data.ok && data.shareToken) {
+    if (data && typeof data.shareToken === 'string' && data.shareToken) {
       authState.shareToken = data.shareToken;
-      setAuthUI();
     }
   } catch (err) {
     console.warn('Share link refresh failed', err);
+  } finally {
+    setAuthUI();
   }
 }
 

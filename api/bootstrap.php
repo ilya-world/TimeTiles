@@ -180,3 +180,28 @@ function normalizeEmail($email) {
     }
     return $normalized;
 }
+
+function generateHexToken($bytesLength) {
+    $bytesLength = (int)$bytesLength;
+    if ($bytesLength <= 0) {
+        return '';
+    }
+
+    if (function_exists('random_bytes')) {
+        return bin2hex(random_bytes($bytesLength));
+    }
+
+    if (function_exists('openssl_random_pseudo_bytes')) {
+        $strong = false;
+        $bytes = openssl_random_pseudo_bytes($bytesLength, $strong);
+        if ($bytes !== false && strlen($bytes) === $bytesLength && $strong) {
+            return bin2hex($bytes);
+        }
+    }
+
+    $bytes = '';
+    for ($i = 0; $i < $bytesLength; $i++) {
+        $bytes .= chr(mt_rand(0, 255));
+    }
+    return bin2hex($bytes);
+}

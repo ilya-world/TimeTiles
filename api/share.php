@@ -39,7 +39,7 @@ if ($method === 'GET') {
     }
     $stmt->close();
 
-    $shareToken = bin2hex(random_bytes(32));
+    $shareToken = generateHexToken(32);
     $now = date('Y-m-d H:i:s');
     $insert = dbPrepare($mysqli, 'INSERT INTO user_share_tokens (user_id, share_token, created_at, updated_at) VALUES (?, ?, ?, ?)');
     $insert->bind_param('isss', $userId, $shareToken, $now, $now);

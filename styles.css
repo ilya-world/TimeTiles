@@ -150,15 +150,21 @@ body {
 .view-tabs {
   display: flex;
   gap: 8px;
+  position: relative;
+  z-index: 2;
 }
 
 .view-tab {
+  -webkit-appearance: none;
+  appearance: none;
   border: 1px solid var(--border);
   background: transparent;
   color: inherit;
   border-radius: 10px;
   padding: 7px 10px;
   cursor: pointer;
+  pointer-events: auto;
+  touch-action: manipulation;
 }
 
 .view-tab.active {

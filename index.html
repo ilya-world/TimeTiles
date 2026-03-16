@@ -18,7 +18,7 @@
         </div>
 
         <section class="section">
-          <h2>Дни</h2>
+          <h2 id="periodListTitle">Дни</h2>
           <div id="dayList" class="day-list"></div>
         </section>
 
@@ -87,9 +87,15 @@
       </aside>
 
       <main class="panel panel-center">
+        <div class="view-tabs" role="tablist" aria-label="Режим просмотра">
+          <button id="dayViewTab" class="view-tab" type="button" data-view="day">День</button>
+          <button id="weekViewTab" class="view-tab" type="button" data-view="week">Неделя</button>
+          <button id="analyticsViewTab" class="view-tab" type="button" data-view="analytics" disabled title="Скоро">Аналитика (WIP)</button>
+        </div>
+
         <div class="center-header">
           <h2 id="selectedDayTitle"></h2>
-          <p>12×12 плиток · 24 часа · шаг 10 минут</p>
+          <p id="selectedViewSubtitle">12×12 плиток · 24 часа · шаг 10 минут</p>
         </div>
 
         <div id="grid" class="grid" aria-label="Матрица времени"></div>

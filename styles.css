@@ -146,6 +146,31 @@ body {
   gap: 8px;
 }
 
+
+.view-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.view-tab {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  border-radius: 10px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.view-tab.active {
+  background: #2563eb18;
+  border-color: #2563eb66;
+}
+
+.view-tab:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .panel-center {
   display: flex;
   flex-direction: column;
@@ -341,7 +366,32 @@ dialog {
 
 @media (max-width: 1200px) {
   .app-shell { grid-template-columns: 1fr; }
-  .panel-center {
+  
+.view-tabs {
+  display: flex;
+  gap: 8px;
+}
+
+.view-tab {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  border-radius: 10px;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+
+.view-tab.active {
+  background: #2563eb18;
+  border-color: #2563eb66;
+}
+
+.view-tab:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.panel-center {
     width: 100%;
   }
 }

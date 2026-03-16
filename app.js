@@ -16,7 +16,12 @@ const defaultColors = [
 const els = {
   grid: document.getElementById('grid'),
   dayList: document.getElementById('dayList'),
+  periodListTitle: document.getElementById('periodListTitle'),
   selectedDayTitle: document.getElementById('selectedDayTitle'),
+  selectedViewSubtitle: document.getElementById('selectedViewSubtitle'),
+  dayViewTab: document.getElementById('dayViewTab'),
+  weekViewTab: document.getElementById('weekViewTab'),
+  analyticsViewTab: document.getElementById('analyticsViewTab'),
   toggleTimeLabels: document.getElementById('toggleTimeLabels'),
   toggleTheme: document.getElementById('toggleTheme'),
   selectedTileTime: document.getElementById('selectedTileTime'),
@@ -101,6 +106,8 @@ function loadState() {
       gridScale: 100
     },
     selectedDay: today,
+    viewMode: 'day',
+    selectedWeekStart: weekStartKey(today),
     selectedTile: null,
     selectedBrush: null,
     groups: [],
@@ -130,7 +137,9 @@ function ensureToday() {
   if (!state.days[today]) state.days[today] = createEmptyDay();
   state.daySettings ??= {};
   ensureDaySettings(today);
+  state.viewMode = state.viewMode === 'week' ? 'week' : 'day';
   state.selectedDay = state.days[state.selectedDay] ? state.selectedDay : today;
+  state.selectedWeekStart = normalizeWeekStart(state.selectedWeekStart || weekStartKey(state.selectedDay));
   ensureDaySettings(state.selectedDay);
 }
 
@@ -193,10 +202,14 @@ function renderAll() {
   els.gridScaleValue.textContent = `${state.settings.gridScale}%`;
   document.documentElement.style.setProperty('--center-scale', String(state.settings.gridScale / 100));
   els.eraserBrushBtn.classList.toggle('active', state.selectedBrush?.type === 'erase');
+  els.dayViewTab.classList.toggle('active', state.viewMode === 'day');
+  els.weekViewTab.classList.toggle('active', state.viewMode === 'week');
   ensureDaySettings(state.selectedDay);
-  els.morningLineTime.value = state.daySettings[state.selectedDay].morningLineHour == null
+  const morningTargetDay = state.viewMode === 'week' ? state.selectedWeekStart : state.selectedDay;
+  ensureDaySettings(morningTargetDay);
+  els.morningLineTime.value = state.daySettings[morningTargetDay].morningLineHour == null
     ? ''
-    : String(state.daySettings[state.selectedDay].morningLineHour);
+    : String(state.daySettings[morningTargetDay].morningLineHour);
   renderDayList();
   renderGrid();
   renderSelectionPanel();
@@ -205,10 +218,39 @@ function renderAll() {
 }
 
 function renderDayList() {
-  const keys = Object.keys(state.days).sort((a, b) => b.localeCompare(a));
+  const today = dayKey(new Date());
+  const mode = state.viewMode;
   els.dayList.innerHTML = '';
 
-  const today = dayKey(new Date());
+  if (mode === 'week') {
+    els.periodListTitle.textContent = 'Недели';
+    const weekKeys = [...new Set(Object.keys(state.days).filter((key) => key <= today).map(weekStartKey))]
+      .sort((a, b) => b.localeCompare(a));
+
+    state.selectedWeekStart = normalizeWeekStart(state.selectedWeekStart || weekStartKey(state.selectedDay));
+
+    weekKeys.forEach((weekKey) => {
+      const btn = document.createElement('button');
+      const active = state.selectedWeekStart === weekKey;
+      const current = weekKey === weekStartKey(today);
+      btn.className = `day-button ${current ? 'current' : ''} ${active ? 'active' : ''}`;
+      btn.textContent = `${current ? 'Текущая неделя' : 'Неделя'} ${formatWeekRange(weekKey)}`;
+      btn.onclick = () => {
+        state.selectedWeekStart = weekKey;
+        state.selectedDay = weekKey;
+        state.selectedTile = null;
+        renderAll();
+      };
+      els.dayList.appendChild(btn);
+    });
+
+    els.selectedDayTitle.textContent = `Неделя ${formatWeekRange(state.selectedWeekStart)}`;
+    els.selectedViewSubtitle.textContent = '12×84 плитки · 7 дней · шаг 10 минут';
+    return;
+  }
+
+  els.periodListTitle.textContent = 'Дни';
+  const keys = Object.keys(state.days).sort((a, b) => b.localeCompare(a));
   keys.forEach((key) => {
     if (key > today) return;
     const btn = document.createElement('button');
@@ -217,6 +259,7 @@ function renderDayList() {
     btn.textContent = `${isCurrent ? 'Сегодня' : formatDay(key)} (${key})`;
     btn.onclick = () => {
       state.selectedDay = key;
+      state.selectedWeekStart = weekStartKey(key);
       ensureDaySettings(key);
       state.selectedTile = null;
       renderAll();
@@ -225,31 +268,44 @@ function renderDayList() {
   });
 
   els.selectedDayTitle.textContent = state.selectedDay === today ? 'Сегодня' : formatDay(state.selectedDay);
+  els.selectedViewSubtitle.textContent = '12×12 плиток · 24 часа · шаг 10 минут';
 }
 
 function renderGrid() {
-  const dayData = state.days[state.selectedDay];
   const now = new Date();
   const currentDay = dayKey(now);
-  const currentTile = currentDay === state.selectedDay ? toTileIndex(now) : -1;
+  const currentTile = toTileIndex(now);
   els.grid.innerHTML = '';
 
-  for (let i = 0; i < TOTAL_TILES; i++) {
-    const cellData = dayData[i];
+  const cells = state.viewMode === 'week' ? getWeekCells(state.selectedWeekStart) : getDayCells(state.selectedDay);
+
+  cells.forEach((cell, visualIndex) => {
+    ensureDaySettings(cell.dayKey);
+    const dayData = state.days[cell.dayKey] || (state.days[cell.dayKey] = createEmptyDay());
+    const cellData = dayData[cell.tileIndex];
     const activity = state.activities.find((a) => a.id === cellData.activityId) || null;
     const tile = document.createElement('button');
     tile.className = 'tile';
-    if (i < currentTile && state.settings.dimPastTiles) tile.classList.add('past');
-    if (i === currentTile) tile.classList.add('current');
-    if (state.selectedTile === i) tile.classList.add('selected');
-    if (i > currentTile && activity) tile.classList.add('future');
+
+    const dayCurrentTile = currentDay === cell.dayKey ? currentTile : -1;
+    if ((cell.dayKey < currentDay || (cell.dayKey === currentDay && cell.tileIndex < currentTile)) && state.settings.dimPastTiles) tile.classList.add('past');
+    if (cell.tileIndex === dayCurrentTile) tile.classList.add('current');
+
+    if (isSelectedCell(cell.dayKey, cell.tileIndex)) tile.classList.add('selected');
+    if ((cell.dayKey > currentDay || (cell.dayKey === currentDay && cell.tileIndex > currentTile)) && activity) tile.classList.add('future');
     tile.style.setProperty('--activity-color', activity?.color || '#cbd5e1');
     if (activity) tile.style.background = activity.color;
 
-    const leftSame = i % 12 !== 0 && isSameTileMeta(dayData[i - 1], cellData);
-    const rightSame = i % 12 !== 11 && isSameTileMeta(dayData[i + 1], cellData);
-    const upSame = i >= 12 && isSameTileMeta(dayData[i - 12], cellData);
-    const downSame = i < TOTAL_TILES - 12 && isSameTileMeta(dayData[i + 12], cellData);
+    const left = cells[visualIndex - 1];
+    const right = cells[visualIndex + 1];
+    const up = cells[visualIndex - 12];
+    const down = cells[visualIndex + 12];
+
+    const leftSame = left && left.dayKey === cell.dayKey && isSameTileMeta(getCellData(left.dayKey, left.tileIndex), cellData);
+    const rightSame = right && right.dayKey === cell.dayKey && isSameTileMeta(getCellData(right.dayKey, right.tileIndex), cellData);
+    const upSame = up && up.dayKey === cell.dayKey && isSameTileMeta(getCellData(up.dayKey, up.tileIndex), cellData);
+    const downSame = down && down.dayKey === cell.dayKey && isSameTileMeta(getCellData(down.dayKey, down.tileIndex), cellData);
+
     if (leftSame) tile.classList.add('connected-left');
     if (rightSame) tile.classList.add('connected-right');
     if (state.settings.connectTiles) {
@@ -260,8 +316,10 @@ function renderGrid() {
       }
     }
 
-    const [start, end] = tileRange(i);
-    const tooltipLines = [`${start}-${end}`, activity ? activity.name : 'Без активности'];
+    const [start, end] = tileRange(cell.tileIndex);
+    const tooltipLines = [];
+    if (state.viewMode === 'week') tooltipLines.push(formatDayWithDate(cell.dayKey));
+    tooltipLines.push(`${start}-${end}`, activity ? activity.name : 'Без активности');
     if (cellData.comment) tooltipLines.push(cellData.comment);
     tile.dataset.tooltip = tooltipLines.join('\n');
 
@@ -281,8 +339,8 @@ function renderGrid() {
     }
 
     tile.addEventListener('click', (e) => {
-      state.selectedTile = i;
-      if (hasActiveBrush()) applyBrush(i);
+      setSelectedCell(cell.dayKey, cell.tileIndex);
+      if (hasActiveBrush()) applyBrush(cell.dayKey, cell.tileIndex);
       renderAll();
       e.stopPropagation();
     });
@@ -290,8 +348,8 @@ function renderGrid() {
     tile.addEventListener('mousedown', () => {
       isPainting = true;
       if (hasActiveBrush()) {
-        applyBrush(i);
-        state.selectedTile = i;
+        applyBrush(cell.dayKey, cell.tileIndex);
+        setSelectedCell(cell.dayKey, cell.tileIndex);
         renderAll();
       }
     });
@@ -299,8 +357,8 @@ function renderGrid() {
     tile.addEventListener('mouseenter', (e) => {
       showTooltip(e, tile.dataset.tooltip);
       if (isPainting && hasActiveBrush()) {
-        applyBrush(i);
-        state.selectedTile = i;
+        applyBrush(cell.dayKey, cell.tileIndex);
+        setSelectedCell(cell.dayKey, cell.tileIndex);
         renderAll();
       }
     });
@@ -308,27 +366,31 @@ function renderGrid() {
     tile.addEventListener('mouseleave', hideTooltip);
 
     els.grid.appendChild(tile);
-  }
+  });
 
   renderMorningLine();
 }
 
 function renderMorningLine() {
-  const morningHour = state.daySettings[state.selectedDay]?.morningLineHour;
-  if (!MORNING_LINE_HOURS.includes(morningHour)) return;
+  const rows = state.viewMode === 'week' ? getWeekRows(state.selectedWeekStart) : [{ dayKey: state.selectedDay, rowOffset: 0 }];
 
-  const rowStart = morningHour / 2;
-  if (rowStart < 1 || rowStart > 11) return;
+  rows.forEach(({ dayKey, rowOffset }) => {
+    const morningHour = state.daySettings[dayKey]?.morningLineHour;
+    if (!MORNING_LINE_HOURS.includes(morningHour)) return;
 
-  const prevRowTile = els.grid.children[(rowStart - 1) * 12];
-  const nextRowTile = els.grid.children[rowStart * 12];
-  if (!prevRowTile || !nextRowTile) return;
+    const rowStart = morningHour / 2;
+    if (rowStart < 1 || rowStart > 11) return;
 
-  const line = document.createElement('div');
-  line.className = 'morning-line';
-  const top = (prevRowTile.offsetTop + prevRowTile.offsetHeight + nextRowTile.offsetTop) / 2;
-  line.style.top = `${top - 1}px`;
-  els.grid.appendChild(line);
+    const prevRowTile = els.grid.children[(rowOffset + rowStart - 1) * 12];
+    const nextRowTile = els.grid.children[(rowOffset + rowStart) * 12];
+    if (!prevRowTile || !nextRowTile) return;
+
+    const line = document.createElement('div');
+    line.className = 'morning-line';
+    const top = (prevRowTile.offsetTop + prevRowTile.offsetHeight + nextRowTile.offsetTop) / 2;
+    line.style.top = `${top - 1}px`;
+    els.grid.appendChild(line);
+  });
 }
 
 function renderSelectionPanel() {
@@ -344,10 +406,11 @@ function renderSelectionPanel() {
   }
   els.selectedComment.disabled = false;
   els.clearSelectedActivity.disabled = false;
-  const dayData = state.days[state.selectedDay];
-  const tile = dayData[state.selectedTile];
+  const selected = getSelectedCell();
+  if (!selected) return;
+  const tile = getCellData(selected.dayKey, selected.tileIndex);
   const activity = state.activities.find((a) => a.id === tile.activityId);
-  const [start, end] = tileRange(state.selectedTile);
+  const [start, end] = tileRange(selected.tileIndex);
   els.selectedTileTime.textContent = `${start}–${end}`;
   els.selectedActivityName.textContent = activity ? activity.name : 'Не задана';
   els.selectedComment.value = tile.comment || '';
@@ -485,10 +548,14 @@ function bindGlobalEvents() {
     renderAll();
   };
 
+  els.dayViewTab.onclick = () => { state.viewMode = 'day'; state.selectedTile = null; renderAll(); };
+  els.weekViewTab.onclick = () => { state.viewMode = 'week'; state.selectedWeekStart = weekStartKey(state.selectedDay); state.selectedTile = null; renderAll(); };
+
   els.morningLineTime.onchange = (e) => {
-    ensureDaySettings(state.selectedDay);
+    const targetDay = state.viewMode === 'week' ? state.selectedWeekStart : state.selectedDay;
+    ensureDaySettings(targetDay);
     const nextValue = Number(e.target.value);
-    state.daySettings[state.selectedDay].morningLineHour = MORNING_LINE_HOURS.includes(nextValue) ? nextValue : null;
+    state.daySettings[targetDay].morningLineHour = MORNING_LINE_HOURS.includes(nextValue) ? nextValue : null;
     renderAll();
   };
 
@@ -513,8 +580,9 @@ function bindGlobalEvents() {
 
 
   els.copySelectedActivity.onclick = () => {
-    if (state.selectedTile == null) return;
-    const tile = state.days[state.selectedDay][state.selectedTile];
+    const selected = getSelectedCell();
+    if (!selected) return;
+    const tile = getCellData(selected.dayKey, selected.tileIndex);
     if (!tile.activityId) return;
     const sameCopy = state.selectedBrush?.type === 'copy'
       && state.selectedBrush.activityId === tile.activityId
@@ -526,16 +594,18 @@ function bindGlobalEvents() {
   };
 
   els.clearSelectedActivity.onclick = () => {
-    if (state.selectedTile == null) return;
-    const tile = state.days[state.selectedDay][state.selectedTile];
+    const selected = getSelectedCell();
+    if (!selected) return;
+    const tile = getCellData(selected.dayKey, selected.tileIndex);
     tile.activityId = null;
     tile.comment = '';
     renderAll();
   };
 
   els.selectedComment.addEventListener('input', (e) => {
-    if (state.selectedTile == null) return;
-    state.days[state.selectedDay][state.selectedTile].comment = e.target.value;
+    const selected = getSelectedCell();
+    if (!selected) return;
+    getCellData(selected.dayKey, selected.tileIndex).comment = e.target.value;
     saveState();
   });
 
@@ -582,9 +652,9 @@ function createActivity(groupId = null, color = '#3b82f6') {
   });
 }
 
-function applyBrush(tileIndex) {
+function applyBrush(dayKeyTarget, tileIndex) {
   if (!hasActiveBrush()) return;
-  const tile = state.days[state.selectedDay][tileIndex];
+  const tile = getCellData(dayKeyTarget, tileIndex);
 
   if (state.selectedBrush.type === 'erase') {
     tile.activityId = null;
@@ -622,6 +692,63 @@ function importMeetings(text) {
   });
 }
 
+
+function getDayCells(dayKeyValue) {
+  return Array.from({ length: TOTAL_TILES }, (_, tileIndex) => ({ dayKey: dayKeyValue, tileIndex }));
+}
+
+function getWeekCells(weekStart) {
+  const monday = parseDayKey(weekStart);
+  const cells = [];
+  for (let d = 0; d < 7; d++) {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + d);
+    const key = dayKey(date);
+    if (!state.days[key]) state.days[key] = createEmptyDay();
+    ensureDaySettings(key);
+    for (let tileIndex = 0; tileIndex < TOTAL_TILES; tileIndex++) {
+      cells.push({ dayKey: key, tileIndex });
+    }
+  }
+  return cells;
+}
+
+function getWeekRows(weekStart) {
+  const monday = parseDayKey(weekStart);
+  return Array.from({ length: 7 }, (_, dayOffset) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + dayOffset);
+    return { dayKey: dayKey(date), rowOffset: dayOffset * 12 };
+  });
+}
+
+function getCellData(dayKeyValue, tileIndex) {
+  if (!state.days[dayKeyValue]) state.days[dayKeyValue] = createEmptyDay();
+  return state.days[dayKeyValue][tileIndex];
+}
+
+function setSelectedCell(dayKeyValue, tileIndex) {
+  state.selectedTile = { dayKey: dayKeyValue, tileIndex };
+  state.selectedDay = dayKeyValue;
+  state.selectedWeekStart = weekStartKey(dayKeyValue);
+}
+
+function getSelectedCell() {
+  if (state.selectedTile == null) return null;
+  if (typeof state.selectedTile === 'number') {
+    return { dayKey: state.selectedDay, tileIndex: state.selectedTile };
+  }
+  if (typeof state.selectedTile === 'object' && typeof state.selectedTile.tileIndex === 'number' && typeof state.selectedTile.dayKey === 'string') {
+    return state.selectedTile;
+  }
+  return null;
+}
+
+function isSelectedCell(dayKeyValue, tileIndex) {
+  const selected = getSelectedCell();
+  return Boolean(selected && selected.dayKey === dayKeyValue && selected.tileIndex === tileIndex);
+}
+
 function tileRange(index) {
   const start = minutesToTime(index * TILE_MINUTES);
   const end = minutesToTime((index + 1) * TILE_MINUTES);
@@ -651,6 +778,35 @@ function dayKey(date) {
   const m = String(date.getMonth() + 1).padStart(2, '0');
   const d = String(date.getDate()).padStart(2, '0');
   return `${y}-${m}-${d}`;
+}
+
+
+function parseDayKey(key) {
+  const [year, month, day] = key.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function weekStartKey(key) {
+  const date = parseDayKey(key);
+  const day = date.getDay() || 7;
+  date.setDate(date.getDate() - day + 1);
+  return dayKey(date);
+}
+
+function normalizeWeekStart(key) {
+  return weekStartKey(key);
+}
+
+function formatWeekRange(weekKey) {
+  const start = parseDayKey(weekKey);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  return `${start.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}–${end.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })}`;
+}
+
+function formatDayWithDate(key) {
+  const d = parseDayKey(key);
+  return d.toLocaleDateString('ru-RU', { weekday: 'short', day: '2-digit', month: '2-digit' });
 }
 
 function formatDay(key) {

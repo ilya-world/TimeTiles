@@ -7,10 +7,17 @@ const SYNC_DEBOUNCE_MS = 1500;
 const SHARE_LINK_REFRESH_MS = 60000;
 
 const defaultColors = [
-  '#ef4444', '#f97316', '#f59e0b', '#eab308', '#84cc16',
-  '#22c55e', '#14b8a6', '#06b6d4', '#0ea5e9', '#3b82f6',
-  '#6366f1', '#8b5cf6', '#a855f7', '#d946ef', '#ec4899',
-  '#f43f5e', '#f87171', '#10b981', '#2dd4bf', '#64748b'
+  '#FFC3C6', '#FFDABC', '#FFEDB3', '#FFFCAE', '#D8FFD1', '#B2FDD9',
+  '#FF6D72', '#FFB16C', '#FFD73E', '#FFF81B', '#A8FF97', '#01FFB0',
+  '#FF0000', '#FF6700', '#FFB300', '#FDE900', '#34FF00', '#01F46C',
+  '#DB0000', '#D64900', '#CA8500', '#BDAD00', '#18BD00', '#00B44A',
+  '#840000', '#802400', '#7D4300', '#6E6800', '#1A6D0C', '#006D2E',
+  '#ABFFF7', '#ADDFFF', '#B8CFFF', '#F4C6FF', '#FFCBFF', '#FFC8E2',
+  '#01FFEF', '#26BCFF', '#6193FF', '#DE7BFF', '#FF87FF', '#FF7DBD',
+  '#01FFDB', '#008DFF', '#0049FF', '#B512FF', '#FF00FF', '#FF008D',
+  '#00BEA2', '#005CC7', '#002AC7', '#7C00DF', '#DA00BE', '#DC005C',
+  '#006658', '#003776', '#001A78', '#50008B', '#840072', '#96003F',
+  '#000000', '#333333', '#666666', '#999999', '#CCCCCC', '#FFFFFF'
 ];
 
 const els = {

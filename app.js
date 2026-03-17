@@ -447,8 +447,14 @@ function renderGroups() {
     const node = groupTpl.content.firstElementChild.cloneNode(true);
     node.querySelector('.group-name').value = group.name;
     node.querySelector('.group-color').value = group.color;
-    node.querySelector('.group-name').oninput = (e) => { group.name = e.target.value; renderAll(); };
-    node.querySelector('.group-color').oninput = (e) => { group.color = e.target.value; renderAll(); };
+    node.querySelector('.group-name').oninput = (e) => {
+      group.name = e.target.value;
+      saveState();
+    };
+    node.querySelector('.group-color').oninput = (e) => {
+      group.color = e.target.value;
+      saveState();
+    };
     node.querySelector('.delete-group').onclick = () => {
       state.activities.forEach((a) => { if (a.groupId === group.id) a.groupId = null; });
       state.groups = state.groups.filter((g) => g.id !== group.id);

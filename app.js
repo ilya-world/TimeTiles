@@ -649,11 +649,20 @@ function renderPalette() {
     b.style.background = color;
     b.onclick = () => {
       els.customColorPicker.value = color;
+      applyColorToSelectedBrushActivity(color);
       [...els.palette.children].forEach((n) => n.classList.remove('active'));
       b.classList.add('active');
     };
     els.palette.appendChild(b);
   });
+}
+
+function applyColorToSelectedBrushActivity(color) {
+  if (!state.selectedBrush?.activityId) return;
+  const activity = state.activities.find((item) => item.id === state.selectedBrush.activityId);
+  if (!activity) return;
+  activity.color = color;
+  renderAll();
 }
 
 function createActivity(groupId = null, color = '#3b82f6') {
